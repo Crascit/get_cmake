@@ -1,0 +1,2 @@
+# Output directories if script is run in-place
+cmake-[0-9]*.[0-9]*.[0-9]**
