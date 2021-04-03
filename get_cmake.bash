@@ -27,7 +27,7 @@ doDownload="curl -LO --max-time 300 --silent --show-error"
 # don't pollute the working dir we were called from.
 #======================================================================
 scriptDir=$( cd `dirname $0` ; pwd )
-outputDir=${scriptDir}/${2:-cmake-${CMAKE_VERSION}}
+outputDir=${2:-$( pwd )/cmake-${CMAKE_VERSION}}
 mkdir -p ${outputDir}
 cd ${outputDir}
 
@@ -51,7 +51,8 @@ if [[ -d "${scriptDir}/trusted_pubkeys" ]] ; then
     if [[ -n "${pubkeys}" ]] ; then
         keyringFile="${outputDir}/trusted_pubkeys_keyring.gpg"
         echo "Creating local keyring ${keyringFile} for trusted keys in ${trustedPubKeyDir}"
-        gpg ${keyringOpts} --trust-model always \
+        gpg ${keyringOpts} \
+            --trust-model always \
             --import-options import-export \
             --import ${trustedPubKeyDir}/*.asc > ${keyringFile}
         keyringOpts="${keyringOpts} --keyring ${keyringFile}"
