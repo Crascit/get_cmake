@@ -2,32 +2,180 @@
 
 set -e
 
-CMAKE_VERSION=$1
-if [[ -z "${CMAKE_VERSION}" ]] ; then
-    echo "The CMake version must be specified as a command-line argument"
+show_help()
+{
+    echo "Usage: $0 [options] [version]"
+    echo ""
+    echo "Download and unpack an official CMake release for this platform"
+    echo "and architecture. If 'version' is given, it must be a release"
+    echo "number in the form X.Y.Z or X.Y.Z-rcN, or it can be the special"
+    echo "value 'latest'. If 'version' is omitted, 'latest' will be assumed."
+    echo ""
+    echo "Do not use 'latest' in scripts where the build needs to be"
+    echo "repeatable or traceable. Always prefer to explicitly specify a"
+    echo "version number. The use of 'latest' is intended only as a"
+    echo "convenience for developers to use locally."
+    echo ""
+    echo "Supported options are the following:"
+    echo ""
+    echo "  -h"
+    echo "  --help"
+    echo "    Show this usage message and exit."
+    echo ""
+    echo "  --verbose"
+    echo "    Log extra information about what the script is doing."
+    echo "    Errors and warnings will always be logged regardless of whether"
+    echo "    or not this option is given."
+    echo ""
+    echo "  --progress"
+    echo "    Enable logging of progress output during download (default: off)."
+    echo "    This option is independent of --verbose."
+    echo ""
+    echo "  -f repo"
+    echo "  --from repo"
+    echo "    Specifies where to download the release from. Supported values"
+    echo "    for repo are 'github' or 'kitware'. If this option is not given,"
+    echo "    the default is 'github', which is the recommended repo for the"
+    echo "    best download performance. The value 'kitware' downloads directly"
+    echo "    from cmake.org instead and is intended only for testing purposes."
+    echo ""
+    echo "  -o dir"
+    echo "  --output dir"
+    echo "    The name of the output directory where the release will be"
+    echo "    downloaded and unpacked to. It will be created automatically"
+    echo "    if required. The output directory will also contain other files"
+    echo "    downloaded or created as part of the download process."
+    echo "    If this option is not given, it will default to cmake-\${version}"
+    echo "    relative to the current working directory."
+    echo ""
+    echo "  -t dir"
+    echo "  --trusted-pubkey-dir dir"
+    echo "    Optional directory containing public key files. File names are"
+    echo "    assumed to end in .asc and the file contents are assumed to be"
+    echo "    in ascii-armored form. If this option is not given, the script"
+    echo "    will look in a directory called trusted_pubkeys below the"
+    echo "    directory holding this script. It is not an error if the"
+    echo "    directory does not exist."
+    echo ""
+}
+
+log_msg()
+{
+    if [[ "${verbose}" == yes ]] ; then
+        echo "$1"
+    fi
+}
+
+do_download()
+{
+    curl -LO --max-time 300 ${curlSilentOpt} --show-error $1
+}
+
+verbose=no
+scriptDir=$( cd `dirname $0` ; pwd )
+outputDir=
+repo=github
+trustedPubKeyDir=${scriptDir}/trusted_pubkeys
+curlSilentOpt="--silent"
+
+while :; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit
+            ;;
+        --verbose)
+            verbose=yes
+            ;;
+        --progress)
+            curlSilentOpt=
+            ;;
+        -f|--from)
+            case $2 in
+                github)
+                    repo=github
+                    ;;
+                kitware)
+                    repo=kitware
+                    ;;
+                *)
+                    echo "ERROR: Unsupported file repo: $1 $2"
+                    exit 1
+            esac
+            shift
+            ;;
+        -o|--output)
+            outputDir=$2
+            shift
+            ;;
+        -t|--trusted-pubkey-dir)
+            trustedPubKeyDir=$2
+            shift
+            ;;
+        -*)
+            echo "ERROR: Unknown option: $1"
+            exit 1
+            ;;
+        *)
+            # Optional CMake version after all "-" options
+            break
+    esac
+
+    shift
+done
+
+if [[ $# -gt 1 ]] ; then
+    echo "ERROR: Too many command line arguments"
+    echo ""
+    show_help
     exit 1
 fi
 
-# Prefer to use this, downloads will likely be faster
-#DOWNLOAD_BASE=https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}
+CMAKE_VERSION=${1:-latest}
+if [[ "${CMAKE_VERSION}" == latest ]] ; then
+    case ${repo} in
+        github)
+            log_msg "Getting latest release from GitHub"
+            DOWNLOAD_BASE=https://github.com/Kitware/CMake/releases/download/latest
+            ;;
+        kitware)
+            log_msg "Getting latest release from cmake.org"
+            DOWNLOAD_BASE=https://cmake.org/files/LatestRelease
+            ;;
+        *)
+            echo "Unexpected repo source: ${repo}"
+            exit 1
+    esac
+else
+    if ! [[ "${CMAKE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]] ; then
+        echo "Invalid CMake version specified: ${CMAKE_VERSION}"
+        echo "Expected a version number in the form X.Y.Z or X.Y.Z-rcN"
+        exit 1
+    fi
 
-# For testing direct downloads from Kitware, not recommended for normal use
-CMAKE_FEATURE_RELEASE=`echo ${CMAKE_VERSION} | cut -d. -f1-2`
-DOWNLOAD_BASE=https://cmake.org/files/v${CMAKE_FEATURE_RELEASE}
-
-# Adjust as needed for your use case. The URL of the file to be downloaded
-# will be appended to this. It is expected that a file with the same name
-# as the filename at the end of that URL will be created in the current
-# directory.
-doDownload="curl -LO --max-time 300 --silent --show-error"
+    case ${repo} in
+        github)
+            log_msg "Getting CMake ${CMAKE_VERSION} from GitHub"
+            DOWNLOAD_BASE=https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}
+            ;;
+        kitware)
+            log_msg "Getting CMake ${CMAKE_VERSION} from cmake.org"
+            CMAKE_FEATURE_RELEASE=`echo ${CMAKE_VERSION} | cut -d. -f1-2`
+            DOWNLOAD_BASE=https://cmake.org/files/v${CMAKE_FEATURE_RELEASE}
+            ;;
+        *)
+            echo "Unexpected repo source: ${repo}"
+            exit 1
+    esac
+fi
 
 
 #======================================================================
 # Put all our downloaded/generated files in the output directory so we
 # don't pollute the working dir we were called from.
 #======================================================================
-scriptDir=$( cd `dirname $0` ; pwd )
-outputDir=${2:-$( pwd )/cmake-${CMAKE_VERSION}}
+outputDir=${outputDir:-$( pwd )/cmake-${CMAKE_VERSION}}
+log_msg "Using output directory ${outputDir}"
 mkdir -p ${outputDir}
 cd ${outputDir}
 
@@ -45,16 +193,20 @@ cd ${outputDir}
 # where ... will be a link to a keyserver providing the public key.
 #======================================================================
 keyringOpts="--batch"
-if [[ -d "${scriptDir}/trusted_pubkeys" ]] ; then
-    trustedPubKeyDir=${scriptDir}/trusted_pubkeys
+if [[ "${verbose}" == no ]] ; then
+    keyringOpts="${keyringOpts} --quiet"
+fi
+if [[ -d "${trustedPubKeyDir}" ]] ; then
     pubkeys=`ls ${trustedPubKeyDir}/*.asc`
     if [[ -n "${pubkeys}" ]] ; then
         keyringFile="${outputDir}/trusted_pubkeys_keyring.gpg"
-        echo "Creating local keyring ${keyringFile} for trusted keys in ${trustedPubKeyDir}"
+        log_msg "Creating local keyring ${keyringFile} for trusted keys in ${trustedPubKeyDir}"
+        [[ -e "${keyringFile}" ]] && rm ${keyringFile} && touch ${keyringFile}
         gpg ${keyringOpts} \
             --trust-model always \
-            --import-options import-export \
-            --import ${trustedPubKeyDir}/*.asc > ${keyringFile}
+            --no-auto-check-trustdb \
+            --primary-keyring ${keyringFile} \
+            --import ${trustedPubKeyDir}/*.asc
         keyringOpts="${keyringOpts} --keyring ${keyringFile}"
     fi
 fi
@@ -65,8 +217,8 @@ fi
 # platform, architecture, etc.
 #======================================================================
 jsonFile=cmake-${CMAKE_VERSION}-files-v1.json
-echo "Downloading JSON package descriptions file: ${jsonFile}"
-${doDownload} ${DOWNLOAD_BASE}/${jsonFile}
+log_msg "Downloading JSON package descriptions file: ${jsonFile}"
+do_download ${DOWNLOAD_BASE}/${jsonFile}
 
 
 #======================================================================
@@ -79,27 +231,38 @@ if [[ ! "${msg}" = null ]] ; then
     echo "WARNING: The CMake hash file provides the following deprecation message:"
     echo "${msg}"
 fi
-${doDownload} ${DOWNLOAD_BASE}/${hashFilename}
+do_download ${DOWNLOAD_BASE}/${hashFilename}
 
 goodSigFile=""
 for sigFile in $( jq -r "${hashQuery} | .signature | .[]" ${jsonFile}) ; do
-    echo "Downloading and checking signature file: ${sigFile}"
-    ${doDownload} ${DOWNLOAD_BASE}/${sigFile}
-    if gpg ${keyringOpts} --verify ${sigFile} ${hashFilename} ; then
-        goodSigFile=${sigFile}
-        break
+    log_msg "Downloading and checking signature file: ${sigFile}"
+    do_download ${DOWNLOAD_BASE}/${sigFile}
+    if [[ "${verbose}" == no ]] ; then
+        # --verify-options doesn't allow us to prevent all output, so dump it
+        if gpg ${keyringOpts} --verify ${sigFile} ${hashFilename} > /dev/null 2>&1 ; then
+            goodSigFile=${sigFile}
+            break
+        fi
+    else
+        # This will print various details about the key used
+        if gpg ${keyringOpts} --verify ${sigFile} ${hashFilename} ; then
+            goodSigFile=${sigFile}
+            break
+        fi
     fi
 done
 if [[ -z "${goodSigFile}" ]] ; then
     echo "Unable to verify hashes with provided signature(s)."
     echo "Check if a new public key is now being used."
-    echo "This may require updating your project with new public key files."
+    echo "This may require updating your project with new public key files"
+    echo "or adding the missing key to your default keyring."
     exit 1
 fi
 
 
 #======================================================================
-# Download the appropriate package for this platform/architecture
+# Download and verify the appropriate package for this
+# platform/architecture
 #======================================================================
 case "$(uname -s)" in
     Linux)
@@ -124,29 +287,44 @@ if [[ ! "${msg}" = null ]] ; then
     echo "WARNING: The CMake package provides the following deprecation message:"
     echo "${msg}"
 fi
-echo "Downloading package file: ${pkgFilename}"
-${doDownload} ${DOWNLOAD_BASE}/${pkgFilename}
+
+# If we've already got a package file with the expected name, check if it
+# matches the checksum and skip the download if we can confirm we already
+# have the right file.
+haveFile=no
+if [[ -e "${pkgFilename}" ]] ; then
+    grep ${pkgFilename} ${hashFilename} | ${shatool} --check --status && haveFile=yes
+fi
+if [[ ${haveFile} == yes ]] ; then
+    log_msg "Existing package file matches checksum, skipping download and re-using it"
+else
+    log_msg "Downloading package file: ${pkgFilename}"
+    do_download ${DOWNLOAD_BASE}/${pkgFilename}
+
+    log_msg "Verifying downloaded file"
+    statusOpt=
+    if [[ "${verbose}" == no ]] ; then
+        statusOpt="--status"
+    fi
+    if ! grep ${pkgFilename} ${hashFilename} | ${shatool} --check ${statusOpt} ; then
+        echo "Package file failed verification check: ${pkgFilename}"
+        exit 1
+    fi
+fi
 
 
 #======================================================================
-# Verify the downloaded package
+# Package downloaded and verified, unpack it
 #======================================================================
-echo "Verifying downloaded file"
-grep ${pkgFilename} ${hashFilename} | ${shatool} --check
-
-
-#======================================================================
-# Package passed verification, unpack it
-#======================================================================
-echo "Extracting package to ${outputDir}"
+log_msg "Extracting package to ${outputDir}"
 tar zxf ${pkgFilename} --strip-components 1
 
 case "${OS}" in
     macOS)
         # NOTE: macOS packages are distributed as an app bundle
-        echo "Prepend the following to your PATH: ${outputDir}/CMake.app/Contents/bin"
+        log_msg "Prepend the following to your PATH: ${outputDir}/CMake.app/Contents/bin"
         ;;
     *)
-        echo "Prepend the following to your PATH: ${outputDir}/bin"
+        log_msg "Prepend the following to your PATH: ${outputDir}/bin"
         ;;
 esac
