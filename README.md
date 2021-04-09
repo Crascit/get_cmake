@@ -80,6 +80,9 @@ The requirements vary a little between platforms, as specified below.
 * gpg
 * curl
 * tar
+* sort
+* sed
+* tail
 
 ### macOS
 
@@ -89,6 +92,9 @@ The requirements vary a little between platforms, as specified below.
 * gpg
 * curl
 * tar
+* sort
+* sed
+* tail
 
 ### Windows
 
