@@ -206,12 +206,12 @@ if [[ "${CMAKE_VERSION}" == latest ]] ; then
             DOWNLOAD_BASE=https://cmake.org/files/LatestRelease
             ;;
         *)
-            echo "Unexpected repo source: ${repo}"
+            echo "ERROR: Unexpected repo source: ${repo}"
             exit 1
     esac
 else
     if ! [[ "${CMAKE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]] ; then
-        echo "Invalid CMake version specified: ${CMAKE_VERSION}"
+        echo "ERROR: Invalid CMake version specified: ${CMAKE_VERSION}"
         echo "Expected a version number in the form X.Y.Z or X.Y.Z-rcN"
         exit 1
     fi
@@ -227,7 +227,7 @@ else
             DOWNLOAD_BASE=https://cmake.org/files/v${CMAKE_FEATURE_RELEASE}
             ;;
         *)
-            echo "Unexpected repo source: ${repo}"
+            echo "ERROR: Unexpected repo source: ${repo}"
             exit 1
     esac
 fi
@@ -237,7 +237,7 @@ curl_download -O ${DOWNLOAD_BASE}/${jsonFile}
 if jq . ${jsonFile} >/dev/null 2>&1 ; then
     log_msg "Package descriptions file is valid JSON"
 else
-    echo "Package descriptions file does not appear to be valid JSON."
+    echo "ERROR: Package descriptions file does not appear to be valid JSON."
     echo "Obtained from URL:  ${DOWNLOAD_BASE}/${jsonFile}"
     echo "End of the downloaded file follows:"
     cat ${jsonFile} | tail -13
@@ -276,7 +276,7 @@ for sigFile in $( jq -r "${hashQuery} | .signature | .[]" ${jsonFile}) ; do
     fi
 done
 if [[ -z "${goodSigFile}" ]] ; then
-    echo "Unable to verify hashes with provided signature(s)."
+    echo "ERROR: Unable to verify hashes with provided signature(s)."
     echo "Check if a new public key is now being used."
     echo "This may require updating your project with new public key files"
     echo "or adding the missing key to your default keyring."
@@ -331,7 +331,7 @@ else
         statusOpt="--status"
     fi
     if ! grep ${pkgFilename} ${hashFilename} | ${shatool} --check ${statusOpt} ; then
-        echo "Package file failed verification check: ${pkgFilename}"
+        echo "ERROR: Package file failed verification check: ${pkgFilename}"
         exit 1
     fi
 fi
