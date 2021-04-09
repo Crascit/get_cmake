@@ -1,5 +1,7 @@
 # get_cmake
 
+Canonical project URL: https://github.com/Crascit/get_cmake
+
 The scripts in this repository are intended primarily for copying directly into
 your own project and used as part of automated CI jobs.
 They retrieve official release packages from an official location, verify
