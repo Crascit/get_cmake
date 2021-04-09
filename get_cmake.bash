@@ -136,7 +136,7 @@ if [[ "${CMAKE_VERSION}" == latest ]] ; then
     case ${repo} in
         github)
             log_msg "Getting latest release from GitHub"
-            DOWNLOAD_BASE=https://github.com/Kitware/CMake/releases/download/latest
+            DOWNLOAD_BASE=https://github.com/Kitware/CMake/releases/latest/download
             ;;
         kitware)
             log_msg "Getting latest release from cmake.org"
