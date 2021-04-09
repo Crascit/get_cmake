@@ -8,6 +8,9 @@ They should not require any administrative privileges, as the official
 packages are fully relocatable and can be run directly from the local output
 directory created by the script.
 
+The script can be used to retrieve all official CMake releases since 3.18.6.
+Release candidates can also be retrieved starting with the 3.21 feature release.
+
 
 ## Incorporating Into Your Project
 
@@ -37,16 +40,21 @@ a non-existent directory.
 The scripts accept a command line argument specifying the CMake version you
 want to download.
 This should be the full version number, like `3.20.0`.
-Release candidates can also be retrieved (e.g. `3.20.0-rc3`).
+Release candidates can also be retrieved (e.g. `3.21.0-rc1`).
 If no version is specified, the latest CMake release will be downloaded.
 CI scripts should always ask for a specific CMake version for repeatability
 and traceability reasons.
+
+Note that a release candidate is considered to be a release.
+If you do not want a release candidate, do not ask for the latest and ask for
+a specific version instead.
+
 The script offers a few options for controlling things like the output
 directory and verbosity.
 See the output from running the script with the `--help` option for details.
 
-In your CI job, you will need to add the relevant directory to your `PATH`
-after the script has completed.
+After running the script, you will typically want to add the relevant directory
+to your `PATH` to use the downloaded CMake version.
 The directory is different for different platforms due to the different
 package structure.
 The following examples show how to run the script, setup the `PATH` and run
