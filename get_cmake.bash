@@ -234,6 +234,15 @@ fi
 jsonFile=cmake-${CMAKE_VERSION}-files-v1.json
 log_msg "Downloading JSON package descriptions file: ${jsonFile}"
 curl_download -O ${DOWNLOAD_BASE}/${jsonFile}
+if jq . ${jsonFile} >/dev/null 2>&1 ; then
+    log_msg "Package descriptions file is valid JSON"
+else
+    echo "Package descriptions file does not appear to be valid JSON."
+    echo "Obtained from URL:  ${DOWNLOAD_BASE}/${jsonFile}"
+    echo "End of the downloaded file follows:"
+    cat ${jsonFile} | tail -13
+    exit 1
+fi
 
 
 #======================================================================
