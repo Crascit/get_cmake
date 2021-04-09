@@ -107,3 +107,16 @@ The requirements vary a little between platforms, as specified below.
 ### Windows
 
 TBA
+
+
+## Other Resources
+
+NOTE: For problems with the scripts in this repository, open a GitHub issue
+      against this project.
+
+General questions about using CMake are best asked in the
+[CMake forums](https://discourse.cmake.org).
+
+The book 
+[Professional CMake: A Practical Guide](https://crascit.com/professional-cmake)
+is also a popular resource for learning how to use CMake.
