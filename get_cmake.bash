@@ -66,9 +66,9 @@ log_msg()
     fi
 }
 
-do_download()
+curl_download()
 {
-    curl -LO --max-time 300 ${curlSilentOpt} --show-error $1
+    curl -L --max-time 300 ${curlSilentOpt} --show-error "$@"
 }
 
 verbose=no
@@ -132,42 +132,6 @@ if [[ $# -gt 1 ]] ; then
 fi
 
 CMAKE_VERSION=${1:-latest}
-if [[ "${CMAKE_VERSION}" == latest ]] ; then
-    case ${repo} in
-        github)
-            log_msg "Getting latest release from GitHub"
-            DOWNLOAD_BASE=https://github.com/Kitware/CMake/releases/latest/download
-            ;;
-        kitware)
-            log_msg "Getting latest release from cmake.org"
-            DOWNLOAD_BASE=https://cmake.org/files/LatestRelease
-            ;;
-        *)
-            echo "Unexpected repo source: ${repo}"
-            exit 1
-    esac
-else
-    if ! [[ "${CMAKE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]] ; then
-        echo "Invalid CMake version specified: ${CMAKE_VERSION}"
-        echo "Expected a version number in the form X.Y.Z or X.Y.Z-rcN"
-        exit 1
-    fi
-
-    case ${repo} in
-        github)
-            log_msg "Getting CMake ${CMAKE_VERSION} from GitHub"
-            DOWNLOAD_BASE=https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}
-            ;;
-        kitware)
-            log_msg "Getting CMake ${CMAKE_VERSION} from cmake.org"
-            CMAKE_FEATURE_RELEASE=`echo ${CMAKE_VERSION} | cut -d. -f1-2`
-            DOWNLOAD_BASE=https://cmake.org/files/v${CMAKE_FEATURE_RELEASE}
-            ;;
-        *)
-            echo "Unexpected repo source: ${repo}"
-            exit 1
-    esac
-fi
 
 
 #======================================================================
@@ -217,9 +181,59 @@ fi
 # Download the JSON file that specifies the file names for each
 # platform, architecture, etc.
 #======================================================================
+if [[ "${CMAKE_VERSION}" == latest ]] ; then
+    case ${repo} in
+        github)
+            log_msg "Getting latest release from GitHub"
+            # GitHub's concept of "latest" is time-based, not version-based.
+            # That makes it unsuitable for our needs. We have to use its API to
+            # get the list of releases and work out the latest for ourselves.
+            # Sorting needs to account for an optional -rcN suffix, but the
+            # sort -V command would consider those to be later than the same
+            # release without the suffix. We need the opposite of that, so we
+            # append an underscore for sorting and then strip it off again to
+            # get the ordering we need.
+            curl_download \
+                 -o releases.json \
+                 -H "Accept: application/vnd.github.v3+json" \
+                 https://api.github.com/repos/Kitware/CMake/releases
+            CMAKE_VERSION=`jq -r '.[] | select(.draft | not) | (.tag_name + "_") | .[1:]' releases.json | sort -V | sed 's/_$//g' | tail -1`
+            log_msg "Latest release found to be ${CMAKE_VERSION}"
+            DOWNLOAD_BASE=https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}
+            ;;
+        kitware)
+            log_msg "Getting latest release from cmake.org"
+            DOWNLOAD_BASE=https://cmake.org/files/LatestRelease
+            ;;
+        *)
+            echo "Unexpected repo source: ${repo}"
+            exit 1
+    esac
+else
+    if ! [[ "${CMAKE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]] ; then
+        echo "Invalid CMake version specified: ${CMAKE_VERSION}"
+        echo "Expected a version number in the form X.Y.Z or X.Y.Z-rcN"
+        exit 1
+    fi
+
+    case ${repo} in
+        github)
+            log_msg "Getting CMake ${CMAKE_VERSION} from GitHub"
+            DOWNLOAD_BASE=https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}
+            ;;
+        kitware)
+            log_msg "Getting CMake ${CMAKE_VERSION} from cmake.org"
+            CMAKE_FEATURE_RELEASE=`echo ${CMAKE_VERSION} | cut -d. -f1-2`
+            DOWNLOAD_BASE=https://cmake.org/files/v${CMAKE_FEATURE_RELEASE}
+            ;;
+        *)
+            echo "Unexpected repo source: ${repo}"
+            exit 1
+    esac
+fi
 jsonFile=cmake-${CMAKE_VERSION}-files-v1.json
 log_msg "Downloading JSON package descriptions file: ${jsonFile}"
-do_download ${DOWNLOAD_BASE}/${jsonFile}
+curl_download -O ${DOWNLOAD_BASE}/${jsonFile}
 
 
 #======================================================================
@@ -232,12 +246,12 @@ if [[ ! "${msg}" = null ]] ; then
     echo "WARNING: The CMake hash file provides the following deprecation message:"
     echo "${msg}"
 fi
-do_download ${DOWNLOAD_BASE}/${hashFilename}
+curl_download -O ${DOWNLOAD_BASE}/${hashFilename}
 
 goodSigFile=""
 for sigFile in $( jq -r "${hashQuery} | .signature | .[]" ${jsonFile}) ; do
     log_msg "Downloading and checking signature file: ${sigFile}"
-    do_download ${DOWNLOAD_BASE}/${sigFile}
+    curl_download -O ${DOWNLOAD_BASE}/${sigFile}
     if [[ "${verbose}" == no ]] ; then
         # --verify-options doesn't allow us to prevent all output, so dump it
         if gpg ${keyringOpts} --verify ${sigFile} ${hashFilename} > /dev/null 2>&1 ; then
@@ -300,7 +314,7 @@ if [[ ${haveFile} == yes ]] ; then
     log_msg "Existing package file matches checksum, skipping download and re-using it"
 else
     log_msg "Downloading package file: ${pkgFilename}"
-    do_download ${DOWNLOAD_BASE}/${pkgFilename}
+    curl_download -O ${DOWNLOAD_BASE}/${pkgFilename}
 
     log_msg "Verifying downloaded file"
     statusOpt=
