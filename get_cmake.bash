@@ -201,7 +201,8 @@ if [[ -d "${trustedPubKeyDir}" ]] ; then
     if [[ -n "${pubkeys}" ]] ; then
         keyringFile="${outputDir}/trusted_pubkeys_keyring.gpg"
         log_msg "Creating local keyring ${keyringFile} for trusted keys in ${trustedPubKeyDir}"
-        [[ -e "${keyringFile}" ]] && rm ${keyringFile} && touch ${keyringFile}
+        [[ -e "${keyringFile}" ]] && rm ${keyringFile}
+       	touch ${keyringFile}
         gpg ${keyringOpts} \
             --trust-model always \
             --no-auto-check-trustdb \
