@@ -201,7 +201,7 @@ if [[ -d "${trustedPubKeyDir}" ]] ; then
         log_msg "Creating local keyring ${keyringFile} for trusted keys in ${trustedPubKeyDir}"
         log_msg "Note: gpg may later warn that these keys are not certified with a trusted signature"
         [[ -e "${keyringFile}" ]] && rm ${keyringFile}
-       	touch ${keyringFile}
+        touch ${keyringFile}
         gpg ${keyringOpts} \
             --trust-model always \
             --no-auto-check-trustdb \
