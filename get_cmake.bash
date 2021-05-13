@@ -59,6 +59,14 @@ show_help()
     echo "    Errors and warnings will always be logged regardless of whether"
     echo "    or not this option is given."
     echo ""
+    echo "  --cleanup"
+    echo "    Remove any temporary files from the output directory at the end"
+    echo "    of a successful run. These files will not be removed if any"
+    echo "    error occurs. Ordinarily, keeping these files is useful if the"
+    echo "    script may be re-run for the same release. Where this is not"
+    echo "    likely (e.g. preparing a Docker container), this option is"
+    echo "    recommended."
+    echo ""
     echo "  --progress"
     echo "    Enable logging of progress output during download (default: off)."
     echo "    This option is independent of --verbose."
@@ -111,6 +119,8 @@ outputDir=
 repo=github
 trustedPubKeyDir=${scriptDir}/trusted_pubkeys
 curlSilentOpt="--silent"
+cleanup=no
+filesToCleanUp=
 
 while :; do
     case $1 in
@@ -120,6 +130,9 @@ while :; do
             ;;
         --verbose)
             verbose=yes
+            ;;
+        --cleanup)
+            cleanup=yes
             ;;
         --progress)
             curlSilentOpt=
@@ -235,6 +248,7 @@ if [[ "${CMAKE_VERSION}" == latest ]] ; then
             CMAKE_VERSION=`jq -r '.[] | select(.draft | not) | (.tag_name + "_") | .[1:]' releases.json | sort -V | sed 's/_$//g' | tail -1`
             log_msg "Latest release found to be ${CMAKE_VERSION}"
             DOWNLOAD_BASE=https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}
+            filesToCleanUp="${filesToCleanUp} releases.json"
             ;;
         kitware)
             log_msg "Getting latest release from cmake.org"
@@ -269,6 +283,7 @@ fi
 jsonFile=cmake-${CMAKE_VERSION}-files-v1.json
 log_msg "Downloading JSON package descriptions file: ${jsonFile}"
 curl_download -O ${DOWNLOAD_BASE}/${jsonFile}
+filesToCleanUp="${filesToCleanUp} ${jsonFile}"
 if jq . ${jsonFile} >/dev/null 2>&1 ; then
     log_msg "Package descriptions file is valid JSON"
 else
@@ -291,11 +306,13 @@ if [[ ! "${msg}" = null ]] ; then
     echo "${msg}"
 fi
 curl_download -O ${DOWNLOAD_BASE}/${hashFilename}
+filesToCleanUp="${filesToCleanUp} ${hashFilename}"
 
 goodSigFile=""
 for sigFile in $( jq -r "${hashQuery} | .signature | .[]" ${jsonFile}) ; do
     log_msg "Downloading and checking signature file: ${sigFile}"
     curl_download -O ${DOWNLOAD_BASE}/${sigFile}
+    filesToCleanUp="${filesToCleanUp} ${sigFile}"
     if [[ "${verbose}" == no ]] ; then
         # --verify-options doesn't allow us to prevent all output, so dump it
         if gpg ${keyringOpts} --verify ${sigFile} ${hashFilename} > /dev/null 2>&1 ; then
@@ -370,6 +387,7 @@ else
         exit 1
     fi
 fi
+filesToCleanUp="${filesToCleanUp} ${pkgFilename}"
 
 
 #======================================================================
@@ -378,6 +396,22 @@ fi
 log_msg "Extracting package to ${outputDir}"
 tar zxf ${pkgFilename} --strip-components 1
 
+
+#======================================================================
+# Remove any files that are not part of the official release
+#======================================================================
+if [[ "${cleanup}" == yes ]] ; then
+    # Use a wildcard on the keyring file because gpg may create backups
+    log_msg "Cleaning up the following files:"
+    log_msg "trusted_pubkeys_keyring.gpg* ${filesToCleanUp}"
+    rm ${outputDir}/trusted_pubkeys_keyring.gpg*
+    rm ${filesToCleanUp}
+fi
+
+
+#======================================================================
+# End with brief instructions
+#======================================================================
 case "${OS}" in
     macOS)
         # NOTE: macOS packages are distributed as an app bundle
