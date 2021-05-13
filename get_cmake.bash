@@ -210,17 +210,17 @@ fi
 if [[ -d "${trustedPubKeyDir}" ]] ; then
     pubkeys=`ls ${trustedPubKeyDir}/*.asc`
     if [[ -n "${pubkeys}" ]] ; then
-        keyringFile="${outputDir}/trusted_pubkeys_keyring.gpg"
-        log_msg "Creating local keyring ${keyringFile} for trusted keys in ${trustedPubKeyDir}"
+        # We have public key files. Use only those exclusively and use a
+        # completely separate gpg homedir so we don't change the user's
+        # default gpg settings or keys in any way.
+        log_msg "Creating local gpg homedir for trusted keys in ${trustedPubKeyDir}"
         log_msg "Note: gpg may later warn that these keys are not certified with a trusted signature"
-        [[ -e "${keyringFile}" ]] && rm ${keyringFile}
-        touch ${keyringFile}
+        keyringOpts="${keyringOpts} --homedir ${outputDir}/.gnupg"
         gpg ${keyringOpts} \
             --trust-model always \
             --no-auto-check-trustdb \
-            --primary-keyring ${keyringFile} \
             --import ${trustedPubKeyDir}/*.asc
-        keyringOpts="${keyringOpts} --keyring ${keyringFile}"
+        filesToCleanUp="${filesToCleanUp} .gnupg"
     fi
 fi
 
@@ -401,11 +401,9 @@ tar zxf ${pkgFilename} --strip-components 1
 # Remove any files that are not part of the official release
 #======================================================================
 if [[ "${cleanup}" == yes ]] ; then
-    # Use a wildcard on the keyring file because gpg may create backups
-    log_msg "Cleaning up the following files:"
-    log_msg "trusted_pubkeys_keyring.gpg* ${filesToCleanUp}"
-    rm ${outputDir}/trusted_pubkeys_keyring.gpg*
-    rm ${filesToCleanUp}
+    log_msg "Cleaning up the following files and directories:"
+    log_msg "${filesToCleanUp}"
+    rm -rf ${filesToCleanUp}
 fi
 
 
